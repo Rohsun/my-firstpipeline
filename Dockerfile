@@ -1,17 +1,16 @@
-# Use the latest Python image
-FROM python:3.9  
+FROM python:3.9
 
-# Set the working directory inside the container
-WORKDIR /app  
+WORKDIR /app
 
-# Copy all files from the current directory to /app in the container
-COPY . .  
+# Copy requirements.txt from my-python-app/ to /app/
+COPY my-python-app/requirements.txt .
 
-# Install dependencies from requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt  
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose the port your app runs on
-EXPOSE 8080  
+# Copy the rest of the application files
+COPY my-python-app/ ./
 
-# Command to run the application
-CMD ["python3", "app.py"]
+# Set the command to run the application
+CMD ["python", "app/main.py"]
+
