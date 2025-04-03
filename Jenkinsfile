@@ -31,7 +31,7 @@ pipeline {
                     sh '''
                         docker stop my-python-app || true
                         docker rm my-python-app || true
-                        docker run -d -p 8080:8080 --name my-python-app rohsun/my-python-app:latest
+                        docker run -d -p 9090:8080 --name my-python-app rohsun/my-python-app:latest
                     '''
                 }
             }
