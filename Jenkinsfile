@@ -1,43 +1,40 @@
 pipeline {
     agent any
-
     environment {
-        IMAGE_NAME = "my-python-app"
-        DOCKER_HUB_USER = "rohsun"  // Change this to your DockerHub username
-        REPO_URL = "https://github.com/Rohsun/my-firstpipeline.git"
+        DOCKER_HUB_CREDENTIALS = credentials('dockerhub-credentials') // Use your stored credential ID
+        IMAGE_NAME = "rohsun/my-python-app"
+        CONTAINER_NAME = "my-python-app"
     }
-
     stages {
         stage('Clone Repository') {
             steps {
-                git branch: 'main', url: REPO_URL
+                git 'https://github.com/Rohsun/my-firstpipeline.git'
             }
         }
-
         stage('Build Docker Image') {
             steps {
-                script {
-                    sh "docker build -t ${IMAGE_NAME} ."
-                }
+                sh 'docker build -t my-python-app .'
             }
         }
-
         stage('Push Image to DockerHub') {
             steps {
-                script {
-                    // Ensure DockerHub credentials are stored in Jenkins as 'dockerhub-credentials'
-                    withDockerRegistry([credentialsId: 'dockerhub-credentials', url: '']) {
-                        sh "docker tag ${IMAGE_NAME} ${DOCKER_HUB_USER}/${IMAGE_NAME}:latest"
-                        sh "docker push ${DOCKER_HUB_USER}/${IMAGE_NAME}:latest"
-                    }
+                withDockerRegistry([credentialsId: 'dockerhub-credentials', url: 'https://index.docker.io/v1/']) {
+                    sh 'docker tag my-python-app $IMAGE_NAME:latest'
+                    sh 'docker push $IMAGE_NAME:latest'
                 }
             }
         }
-
         stage('Deploy Container') {
             steps {
                 script {
-                    sh "docker run -d -p 8080:8080 --name ${IMAGE_NAME} ${DOCKER_HUB_USER}/${IMAGE_NAME}:latest"
+                    // Stop and remove existing container if running
+                    sh '''
+                    if [ $(docker ps -q -f name=$CONTAINER_NAME) ]; then
+                        docker stop $CONTAINER_NAME
+                        docker rm $CONTAINER_NAME
+                    fi
+                    docker run -d -p 8080:8080 --name $CONTAINER_NAME $IMAGE_NAME:latest
+                    '''
                 }
             }
         }
