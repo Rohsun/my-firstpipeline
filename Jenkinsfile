@@ -27,13 +27,11 @@ pipeline {
         stage('Deploy Container') {
             steps {
                 script {
-                    // Stop and remove existing container if running
+                     // Stop and remove any existing container
                     sh '''
-                    if [ $(docker ps -q -f name=$CONTAINER_NAME) ]; then
-                        docker stop $CONTAINER_NAME
-                        docker rm $CONTAINER_NAME
-                    fi
-                    docker run -d -p 8080:8080 --name $CONTAINER_NAME $IMAGE_NAME:latest
+                        docker stop my-python-app || true
+                        docker rm my-python-app || true
+                        docker run -d -p 8080:8080 --name my-python-app rohsun/my-python-app:latest
                     '''
                 }
             }
