@@ -2,69 +2,79 @@ pipeline {
     agent any
 
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials') // Jenkins credentials ID
-        IMAGE_NAME = 'rohithsun/python-app' // Your DockerHub repo
+        IMAGE_NAME = 'rohithsun/python-app:latest'
+        GIT_CREDENTIALS_ID = 'github-credentials'
+        DOCKER_CREDENTIALS_ID = 'dockerhub-credentials'
+        DEPLOYMENT_REPO = 'https://github.com/your-username/k8s-deployments.git' // Replace this
+        DEPLOYMENT_BRANCH = 'main'
+        MANIFEST_FILE = 'python-app/deployment.yaml' // Path to K8s manifest in the repo
     }
 
     stages {
-        stage('Clone Repository') {
+        stage('Checkout Source Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/Rohsun/my-firstpipeline.git'
-            }
-        }
-
-        stage('Set up Python Environment') {
-            steps {
-                sh '''
-                    python3 -m venv venv
-                    . venv/bin/activate
-                    pip install -r requirements.txt
-                '''
+                git url: 'https://github.com/your-username/python-app.git', branch: 'main'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t $IMAGE_NAME:latest .'
-            }
-        }
-
-        stage('Push Docker Image to DockerHub') {
-            steps {
-                withDockerRegistry([ credentialsId: "$DOCKERHUB_CREDENTIALS", url: '' ]) {
-                    sh 'docker push $IMAGE_NAME:latest'
+                script {
+                    docker.build("${IMAGE_NAME}")
                 }
             }
         }
 
-        stage('Update Kubernetes Manifest') {
+        stage('Push to DockerHub') {
             steps {
-                sh '''
-                    sed -i "s|image:.*|image: $IMAGE_NAME:latest|g" k8s/deployment.yaml
-                    git config --global user.email "jenkins@example.com"
-                    git config --global user.name "jenkins"
-                    git commit -am "Update image tag to latest"
-                    git push origin main
-                '''
+                script {
+                    docker.withRegistry('', DOCKER_CREDENTIALS_ID) {
+                        docker.image("${IMAGE_NAME}").push()
+                    }
+                }
             }
         }
 
-        stage('Trigger ArgoCD Deployment') {
+        stage('Update K8s Manifest with New Image') {
             steps {
-                sh '''
-                    curl -X POST http://argocd-server/api/v1/applications/my-app/sync \
-                    -H "Authorization: Bearer <ARGOCD_TOKEN>"
-                '''
+                dir('k8s-deployments') {
+                    git url: DEPLOYMENT_REPO, branch: DEPLOYMENT_BRANCH, credentialsId: GIT_CREDENTIALS_ID
+
+                    script {
+                        // Replace image in deployment YAML
+                        sh """
+                        sed -i 's|image: .*|image: ${IMAGE_NAME}|' ${MANIFEST_FILE}
+                        git config user.name "Jenkins"
+                        git config user.email "jenkins@yourdomain.com"
+                        git add ${MANIFEST_FILE}
+                        git commit -m "Update image to ${IMAGE_NAME}"
+                        git push origin ${DEPLOYMENT_BRANCH}
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Trigger ArgoCD Sync') {
+            steps {
+                script {
+                    // ArgoCD auto-sync will take care of deployment
+                    echo 'Assuming ArgoCD is set to auto-sync. No manual sync triggered here.'
+                }
             }
         }
     }
 
     post {
-        failure {
-            echo '❌ Pipeline failed. Please check the logs.'
+        always {
+            sh 'docker image prune -af || true'
         }
         success {
-            echo '✅ Pipeline completed successfully!'
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed. Check logs.'
         }
     }
 }
+
