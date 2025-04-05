@@ -2,53 +2,57 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = 'rohithsun/python-app:latest'
-        GIT_CREDENTIALS_ID = 'github-credentials'
-        DOCKER_CREDENTIALS_ID = 'dockerhub-credentials'
-        DEPLOYMENT_REPO = 'https://github.com/your-username/k8s-deployments.git' // Replace this
-        DEPLOYMENT_BRANCH = 'main'
-        MANIFEST_FILE = 'python-app/deployment.yaml' // Path to K8s manifest in the repo
+        GIT_REPO = 'https://github.com/Rohsun/python-app.git'
+        BRANCH = 'main'
+        GIT_CREDS = 'github-credentials'
+        DOCKERHUB_CREDENTIALS = 'dockerhub-creds'
+        IMAGE_NAME = 'rohithsun/python-app'
+        IMAGE_TAG = "v${env.BUILD_NUMBER}"
+        INFRA_REPO = 'https://github.com/Rohsun/k8s-manifests.git'
+        INFRA_REPO_DIR = 'k8s-manifests'
     }
 
     stages {
         stage('Checkout Source Code') {
             steps {
-                git url: 'https://github.com/your-username/python-app.git', branch: 'main'
+                git branch: "${env.BRANCH}", url: "${env.GIT_REPO}", credentialsId: "${env.GIT_CREDS}"
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build("${IMAGE_NAME}")
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                    sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
                 }
             }
         }
 
         stage('Push to DockerHub') {
             steps {
-                script {
-                    docker.withRegistry('', DOCKER_CREDENTIALS_ID) {
-                        docker.image("${IMAGE_NAME}").push()
-                    }
+                withCredentials([usernamePassword(credentialsId: "${env.DOCKERHUB_CREDENTIALS}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                        docker push ${IMAGE_NAME}:latest
+                    '''
                 }
             }
         }
 
         stage('Update K8s Manifest with New Image') {
             steps {
-                dir('k8s-deployments') {
-                    git url: DEPLOYMENT_REPO, branch: DEPLOYMENT_BRANCH, credentialsId: GIT_CREDENTIALS_ID
+                dir("${INFRA_REPO_DIR}") {
+                    git url: "${INFRA_REPO}", branch: 'main', credentialsId: "${env.GIT_CREDS}"
 
                     script {
-                        // Replace image in deployment YAML
                         sh """
-                        sed -i 's|image: .*|image: ${IMAGE_NAME}|' ${MANIFEST_FILE}
-                        git config user.name "Jenkins"
-                        git config user.email "jenkins@yourdomain.com"
-                        git add ${MANIFEST_FILE}
-                        git commit -m "Update image to ${IMAGE_NAME}"
-                        git push origin ${DEPLOYMENT_BRANCH}
+                            sed -i 's|image: .*|image: ${IMAGE_NAME}:${IMAGE_TAG}|' deployment.yaml
+                            git config user.email "jenkins@example.com"
+                            git config user.name "Jenkins CI"
+                            git add deployment.yaml
+                            git commit -m "Update image to ${IMAGE_NAME}:${IMAGE_TAG}"
+                            git push origin main
                         """
                     }
                 }
@@ -58,8 +62,12 @@ pipeline {
         stage('Trigger ArgoCD Sync') {
             steps {
                 script {
-                    // ArgoCD auto-sync will take care of deployment
-                    echo 'Assuming ArgoCD is set to auto-sync. No manual sync triggered here.'
+                    // Replace with your ArgoCD project/app details
+                    sh '''
+                        curl -X POST http://<argocd-server>/api/v1/applications/<your-app>/sync \
+                            -H "Authorization: Bearer <your-argocd-token>" \
+                            -H "Content-Type: application/json"
+                    '''
                 }
             }
         }
@@ -67,14 +75,18 @@ pipeline {
 
     post {
         always {
-            sh 'docker image prune -af || true'
+            echo "Cleaning up Docker images"
+            sh 'docker image prune -af'
         }
+
         success {
-            echo 'Pipeline completed successfully!'
+            echo "Pipeline completed successfully ✅"
         }
+
         failure {
-            echo 'Pipeline failed. Check logs.'
+            echo "Pipeline failed ❌. Check the logs above."
         }
     }
 }
+
 
