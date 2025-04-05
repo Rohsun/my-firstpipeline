@@ -2,7 +2,6 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_HUB_CREDENTIALS = credentials('dockerhub-credentials') // Jenkins credential ID
         IMAGE_NAME = "rohsun/my-python-app"
         CONTAINER_NAME = "my-python-app"
         APP_PORT = "9090"
@@ -19,10 +18,11 @@ pipeline {
         stage('Set up Python Environment') {
             steps {
                 sh '''
-                    sudo apt update
-                    sudo apt install -y python3-venv python3-pip
+                    echo "Installing Python dependencies"
+                    apt-get update && apt-get install -y python3-venv python3-pip
                     python3 -m venv venv
                     . venv/bin/activate
+                    pip install --upgrade pip
                     pip install -r requirements.txt
                 '''
             }
@@ -31,6 +31,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
+                    echo "Building Docker image..."
                     docker build -t $IMAGE_NAME .
                 '''
             }
@@ -38,10 +39,12 @@ pipeline {
 
         stage('Push Docker Image to DockerHub') {
             steps {
-                withDockerRegistry([credentialsId: "$DOCKER_HUB_CREDENTIALS", url: 'https://index.docker.io/v1/']) {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                         docker tag $IMAGE_NAME $IMAGE_NAME:latest
                         docker push $IMAGE_NAME:latest
+                        docker logout
                     '''
                 }
             }
@@ -50,8 +53,11 @@ pipeline {
         stage('Deploy Container') {
             steps {
                 sh '''
+                    echo "Stopping old container if exists..."
                     docker stop $CONTAINER_NAME || true
                     docker rm $CONTAINER_NAME || true
+
+                    echo "Running new container..."
                     docker run -d -p $APP_PORT:$CONTAINER_PORT --name $CONTAINER_NAME $IMAGE_NAME:latest
                 '''
             }
@@ -59,11 +65,12 @@ pipeline {
     }
 
     post {
-        failure {
-            echo "Pipeline failed. Check the logs."
-        }
         success {
-            echo "Deployment successful!"
+            echo '🎉 Deployment successful!'
+        }
+        failure {
+            echo '💥 Pipeline failed. Check the logs!'
         }
     }
 }
+
