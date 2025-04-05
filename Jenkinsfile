@@ -9,11 +9,6 @@ pipeline {
         CONTAINER_PORT = "8080"
     }
 
-    tools {
-        // Remove 'python' tool block if not configured in Jenkins
-        // Python setup will be handled inside the script
-    }
-
     stages {
         stage('Clone Repository') {
             steps {
