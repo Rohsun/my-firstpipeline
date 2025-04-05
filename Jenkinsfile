@@ -6,7 +6,7 @@ pipeline {
         BRANCH = 'main'
         GIT_CREDS = 'github-credentials'
         DOCKERHUB_CREDENTIALS = 'dockerhub-credentials'
-        IMAGE_NAME = 'rohithsun/python-app'
+        IMAGE_NAME = 'rohsun/python-app'
         IMAGE_TAG = "v${env.BUILD_NUMBER}"
         INFRA_REPO = 'https://github.com/Rohsun/k8s-manifests.git'
         INFRA_REPO_DIR = 'k8s-manifests'
