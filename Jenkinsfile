@@ -2,24 +2,22 @@ pipeline {
     agent any
 
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials') // Replace with your DockerHub credentials ID
-        IMAGE_NAME = 'rohithsun/python-app' // Replace with your image name
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials') // Jenkins credentials ID
+        IMAGE_NAME = 'rohithsun/python-app' // Your DockerHub repo
     }
 
     stages {
         stage('Clone Repository') {
             steps {
-                git 'https://github.com/Rohsun/my-firstpipeline.git'
+                git branch: 'main', url: 'https://github.com/Rohsun/my-firstpipeline.git'
             }
         }
 
         stage('Set up Python Environment') {
             steps {
                 sh '''
-                    echo Creating virtual environment...
                     python3 -m venv venv
                     . venv/bin/activate
-                    pip install --upgrade pip
                     pip install -r requirements.txt
                 '''
             }
@@ -27,15 +25,13 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                    docker build -t $IMAGE_NAME:latest .
-                '''
+                sh 'docker build -t $IMAGE_NAME:latest .'
             }
         }
 
         stage('Push Docker Image to DockerHub') {
             steps {
-                withDockerRegistry([ credentialsId: "${DOCKERHUB_CREDENTIALS}", url: '' ]) {
+                withDockerRegistry([ credentialsId: "$DOCKERHUB_CREDENTIALS", url: '' ]) {
                     sh 'docker push $IMAGE_NAME:latest'
                 }
             }
