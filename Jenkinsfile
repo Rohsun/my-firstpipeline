@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        GIT_REPO = 'https://github.com/Rohsun/python-app.git'
+        GIT_REPO = 'https://github.com/Rohsun/my-firstpipeline.git'
         BRANCH = 'main'
         GIT_CREDS = 'github-credentials'
         DOCKERHUB_CREDENTIALS = 'dockerhub-creds'
