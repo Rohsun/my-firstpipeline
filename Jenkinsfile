@@ -8,8 +8,7 @@ pipeline {
         DOCKERHUB_CREDENTIALS = 'dockerhub-credentials'
         IMAGE_NAME = 'rohsun/python-app'
         IMAGE_TAG = "v${env.BUILD_NUMBER}"
-        INFRA_REPO = 'https://github.com/Rohsun/k8s-manifests.git'
-        INFRA_REPO_DIR = 'k8s-manifests'
+        DEPLOYMENT_FILE = 'k8s/deployment.yaml'
     }
 
     stages {
@@ -42,19 +41,15 @@ pipeline {
 
         stage('Update K8s Manifest with New Image') {
             steps {
-                dir("${INFRA_REPO_DIR}") {
-                    git url: "${INFRA_REPO}", branch: 'main', credentialsId: "${env.GIT_CREDS}"
-
-                    script {
-                        sh """
-                            sed -i 's|image: .*|image: ${IMAGE_NAME}:${IMAGE_TAG}|' deployment.yaml
-                            git config user.email "jenkins@example.com"
-                            git config user.name "Jenkins CI"
-                            git add deployment.yaml
-                            git commit -m "Update image to ${IMAGE_NAME}:${IMAGE_TAG}"
-                            git push origin main
-                        """
-                    }
+                script {
+                    sh """
+                        sed -i 's|image: .*|image: ${IMAGE_NAME}:${IMAGE_TAG}|' ${DEPLOYMENT_FILE}
+                        git config user.email "jenkins@example.com"
+                        git config user.name "Jenkins CI"
+                        git add ${DEPLOYMENT_FILE}
+                        git commit -m "Update image to ${IMAGE_NAME}:${IMAGE_TAG}"
+                        git push origin ${BRANCH}
+                    """
                 }
             }
         }
@@ -62,7 +57,7 @@ pipeline {
         stage('Trigger ArgoCD Sync') {
             steps {
                 script {
-                    // Replace with your ArgoCD project/app details
+                    // Replace placeholders with real values
                     sh '''
                         curl -X POST http://<argocd-server>/api/v1/applications/<your-app>/sync \
                             -H "Authorization: Bearer <your-argocd-token>" \
@@ -88,5 +83,3 @@ pipeline {
         }
     }
 }
-
-
